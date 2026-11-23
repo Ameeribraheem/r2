@@ -1,0 +1,1985 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#010c22" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>NEOtech | تحكم روبوت BLE</title>
+
+  <!-- Arabic & Technical Monospace Fonts with reliable system fallbacks -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&family=Inter:wght@600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Cairo', 'Tajawal', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    /* =========================================================================
+       FULL-SCREEN MOBILE LANDSCAPE VIEWPORT LOCK & TOUCH SAFETY
+       ========================================================================= */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100dvh;
+      overflow: hidden;
+      background-color: #000814;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+    }
+
+    /* Glassmorphic Driving Buttons */
+    .drive-btn {
+      background: rgba(3, 18, 42, 0.46);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1.5px solid rgba(56, 189, 248, 0.36);
+      box-shadow:
+        0 8px 24px rgba(0, 8, 20, 0.45),
+        inset 0 1px 0 rgba(125, 211, 252, 0.16);
+      color: rgba(224, 242, 254, 0.92);
+      transition: transform 0.08s ease, background-color 0.08s ease, border-color 0.08s ease, box-shadow 0.08s ease;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .drive-btn.is-active {
+      background: rgba(6, 182, 212, 0.34);
+      border-color: rgba(56, 224, 248, 0.95);
+      color: #ffffff;
+      transform: scale(0.94);
+      box-shadow:
+        0 0 28px rgba(34, 211, 238, 0.65),
+        inset 0 0 18px rgba(34, 211, 238, 0.32);
+    }
+
+    /* Slim Top Corner Glass Pills */
+    .top-glass {
+      background: rgba(2, 16, 38, 0.52);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      box-shadow: 0 4px 16px rgba(0, 8, 20, 0.4);
+    }
+
+    /* Responsive ergonomic sizing for mobile landscape thumb zones */
+    .thumb-btn-vert {
+      width: clamp(72px, 12vw, 108px);
+      height: clamp(64px, 21dvh, 96px);
+    }
+    .thumb-btn-horiz {
+      width: clamp(68px, 11.5vw, 102px);
+      height: clamp(72px, 23dvh, 104px);
+    }
+
+    /* Settings modal scrollable body (allow vertical scroll inside modal only) */
+    .modal-scroll {
+      touch-action: pan-y;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+    .modal-scroll::-webkit-scrollbar {
+      width: 5px;
+    }
+    .modal-scroll::-webkit-scrollbar-track {
+      background: rgba(2, 12, 28, 0.6);
+    }
+    .modal-scroll::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.35);
+      border-radius: 9999px;
+    }
+
+    /* Custom range sliders inside Settings */
+    input[type="range"].neo-range {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"].neo-range::-webkit-slider-runnable-track {
+      height: 8px;
+      border-radius: 9999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+    }
+    input[type="range"].neo-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, #38bdf8, #14b8a6);
+      border: 2px solid #021533;
+      margin-top: -8px;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.65);
+    }
+
+    /* Portrait orientation prompt visibility */
+    #portraitOverlay {
+      display: none;
+    }
+    @media (max-aspect-ratio: 1/1) {
+      #portraitOverlay:not(.dismissed) {
+        display: flex;
+      }
+    }
+
+    @keyframes phoneRotate {
+      0%, 15% { transform: rotate(0deg); }
+      45%, 70% { transform: rotate(-90deg); }
+      90%, 100% { transform: rotate(0deg); }
+    }
+    .animate-phone-rotate {
+      animation: phoneRotate 2.4s ease-in-out infinite;
+    }
+
+    @keyframes statusPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(1.25); }
+    }
+    .dot-pulse {
+      animation: statusPulse 1.15s ease-in-out infinite;
+    }
+  </style>
+</head>
+
+<body class="relative w-screen h-[100dvh] overflow-hidden font-sans text-slate-100">
+
+  <!-- =========================================================================
+       LAYER 1: FULL-SCREEN NEOTECH COVER BACKGROUND (CUSTOM / cover.jpg / BUILT-IN SVG)
+       ========================================================================= -->
+  <div id="coverLayer" class="fixed inset-0 z-0 overflow-hidden pointer-events-none select-none">
+
+    <!-- Built-in High-Craft NEOtech SVG Artwork Fallback -->
+    <div id="builtinCover" class="absolute inset-0 w-full h-full flex items-center justify-center"
+      style="background: radial-gradient(ellipse 68% 72% at 50% 48%, #07336b 0%, #02183b 52%, #000814 100%);">
+
+      <svg class="w-full h-full" viewBox="0 0 1280 720" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-label="NEOtech - مستقبل سوريا التقني">
+        <defs>
+          <!-- Ambient cyan node glow -->
+          <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#7dd3fc" stop-opacity="1" />
+            <stop offset="35%" stop-color="#38bdf8" stop-opacity="0.65" />
+            <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0" />
+          </radialGradient>
+
+          <!-- Teal robot shell gradient -->
+          <linearGradient id="robotBodyGrad" x1="20%" y1="0%" x2="80%" y2="100%">
+            <stop offset="0%" stop-color="#45c2c9" />
+            <stop offset="55%" stop-color="#2b8490" />
+            <stop offset="100%" stop-color="#194d5a" />
+          </linearGradient>
+
+          <!-- Antenna bulb radial sheen -->
+          <radialGradient id="antennaBulbGrad" cx="35%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#8de7ec" />
+            <stop offset="55%" stop-color="#339aa4" />
+            <stop offset="100%" stop-color="#164654" />
+          </radialGradient>
+
+          <!-- Dark visor screen gradient -->
+          <linearGradient id="visorGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#1c2430" />
+            <stop offset="100%" stop-color="#263140" />
+          </linearGradient>
+
+          <!-- Soft blue eye glow -->
+          <filter id="eyeGlow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="5" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+
+          <!-- Subtle halftone dot pattern for background map silhouette -->
+          <pattern id="syriaDotPattern" width="9" height="9" patternUnits="userSpaceOnUse">
+            <circle cx="4" cy="4" r="2.2" fill="#38bdf8" fill-opacity="0.22" />
+          </pattern>
+
+          <!-- Soft shadow behind logo -->
+          <filter id="logoShadow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000510" flood-opacity="0.65" />
+          </filter>
+        </defs>
+
+        <!-- ===== LEFT CONSTELLATION GEOMETRIC NETWORK ===== -->
+        <g stroke="#38bdf8" stroke-opacity="0.26" stroke-width="1.2" fill="none">
+          <path d="M-20,90 L95,155 L210,75 L340,145 L255,250 L95,155" />
+          <path d="M95,155 L60,310 L195,380 L255,250 L365,305 L340,145" />
+          <path d="M-15,430 L60,310 L140,490 L195,380 L315,465 L365,305" />
+          <path d="M140,490 L225,585 L315,465 L445,515 L365,305" />
+          <path d="M-10,610 L140,490 L105,670 L225,585 L360,655 L445,515" />
+          <path d="M210,75 L380,25 L510,95 L340,145" />
+        </g>
+        <!-- Left glowing vertices -->
+        <g>
+          <circle cx="95" cy="155" r="14" fill="url(#nodeGlow)" />
+          <circle cx="210" cy="75" r="11" fill="url(#nodeGlow)" />
+          <circle cx="255" cy="250" r="16" fill="url(#nodeGlow)" />
+          <circle cx="60" cy="310" r="13" fill="url(#nodeGlow)" />
+          <circle cx="195" cy="380" r="15" fill="url(#nodeGlow)" />
+          <circle cx="315" cy="465" r="18" fill="url(#nodeGlow)" />
+          <circle cx="140" cy="490" r="14" fill="url(#nodeGlow)" />
+          <circle cx="225" cy="585" r="22" fill="url(#nodeGlow)" />
+          <circle cx="445" cy="515" r="16" fill="url(#nodeGlow)" />
+          <circle cx="95" cy="155" r="2.4" fill="#bae6fd" />
+          <circle cx="255" cy="250" r="2.8" fill="#bae6fd" />
+          <circle cx="225" cy="585" r="3.4" fill="#e0f2fe" />
+          <circle cx="315" cy="465" r="2.6" fill="#bae6fd" />
+          <circle cx="445" cy="515" r="2.4" fill="#bae6fd" />
+        </g>
+
+        <!-- ===== RIGHT CONSTELLATION GEOMETRIC NETWORK ===== -->
+        <g stroke="#38bdf8" stroke-opacity="0.26" stroke-width="1.2" fill="none">
+          <path d="M1300,85 L1165,140 L1045,65 L920,130 L1020,235 L1165,140" />
+          <path d="M1165,140 L1215,295 L1075,365 L1020,235 L905,310 L920,130" />
+          <path d="M1295,435 L1215,295 L1135,485 L1075,365 L955,465 L905,310" />
+          <path d="M1135,485 L1055,595 L955,465 L835,535 L905,310" />
+          <path d="M1290,620 L1135,485 L1175,675 L1055,595 L910,665 L835,535" />
+          <path d="M1045,65 L875,20 L760,90 L920,130" />
+        </g>
+        <!-- Right glowing vertices -->
+        <g>
+          <circle cx="1165" cy="140" r="15" fill="url(#nodeGlow)" />
+          <circle cx="1045" cy="65" r="12" fill="url(#nodeGlow)" />
+          <circle cx="1020" cy="235" r="16" fill="url(#nodeGlow)" />
+          <circle cx="1215" cy="295" r="14" fill="url(#nodeGlow)" />
+          <circle cx="1075" cy="365" r="18" fill="url(#nodeGlow)" />
+          <circle cx="955" cy="465" r="15" fill="url(#nodeGlow)" />
+          <circle cx="1135" cy="485" r="20" fill="url(#nodeGlow)" />
+          <circle cx="1055" cy="595" r="16" fill="url(#nodeGlow)" />
+          <circle cx="835" cy="535" r="14" fill="url(#nodeGlow)" />
+          <circle cx="1165" cy="140" r="2.6" fill="#bae6fd" />
+          <circle cx="1075" cy="365" r="3" fill="#e0f2fe" />
+          <circle cx="1135" cy="485" r="3.2" fill="#e0f2fe" />
+          <circle cx="955" cy="465" r="2.4" fill="#bae6fd" />
+        </g>
+
+        <!-- ===== SUBTLE DOTTED HALFTONE SYRIA MAP SILHOUETTE IN CENTER ===== -->
+        <path
+          d="M475,180 L540,175 L615,168 L695,172 L780,162 L855,138 L898,142 L912,175 L886,215 L845,255 L815,310 L795,355 L745,395 L685,435 L625,475 L560,510 L495,525 L465,500 L452,455 L465,410 L435,365 L425,315 L445,265 L455,215 Z"
+          fill="url(#syriaDotPattern)" />
+
+        <!-- ===== CENTERED NEOTECH ROBOT HEAD EMBLEM ===== -->
+        <g transform="translate(640, 315)" filter="url(#logoShadow)">
+          <!-- Vertical Antenna Stem & Round Bulb -->
+          <rect x="-12" y="-175" width="24" height="72" rx="8" fill="url(#robotBodyGrad)" stroke="#ffffff" stroke-width="4" />
+          <circle cx="0" cy="-188" r="30" fill="url(#antennaBulbGrad)" stroke="#ffffff" stroke-width="4" />
+
+          <!-- Left & Right Ear Caps -->
+          <rect x="-218" y="-32" width="44" height="106" rx="22" fill="#236470" stroke="#ffffff" stroke-width="4" />
+          <rect x="174" y="-32" width="44" height="106" rx="22" fill="#236470" stroke="#ffffff" stroke-width="4" />
+
+          <!-- Main Rounded Robot Head Chassis -->
+          <rect x="-184" y="-110" width="368" height="248" rx="74" fill="url(#robotBodyGrad)" stroke="#ffffff" stroke-width="4.5" />
+
+          <!-- Inner Dark Visor Screen -->
+          <rect x="-140" y="-68" width="280" height="164" rx="44" fill="url(#visorGrad)" stroke="#12212e" stroke-width="3" />
+
+          <!-- Glowing Sky-Blue Left Eye (Circle) -->
+          <circle cx="-68" cy="14" r="28" fill="#5bc5f7" filter="url(#eyeGlow)" />
+
+          <!-- Cheerful Curved Winking Right Eye -->
+          <path d="M 32,20 C 52,-8 92,-8 112,20 C 90,8 54,8 32,20 Z"
+            fill="#5bc5f7" stroke="#5bc5f7" stroke-width="10" stroke-linejoin="round" stroke-linecap="round" filter="url(#eyeGlow)" />
+        </g>
+
+        <!-- ===== STYLIZED "NEOtech" WORDMARK & ARABIC SUBTITLE ===== -->
+        <g transform="translate(640, 560)" text-anchor="middle" filter="url(#logoShadow)">
+          <text x="0" y="0" font-family="Inter, Cairo, sans-serif" font-weight="900" font-size="82" letter-spacing="1.5" style="paint-order: stroke fill;">
+            <tspan fill="#3aa6b0" stroke="#ffffff" stroke-width="4.5">NEO</tspan><tspan fill="#0d2a49" stroke="#ffffff" stroke-width="4.5">tech</tspan>
+          </text>
+          <text x="0" y="64" font-family="Cairo, Tajawal, sans-serif" font-weight="800" font-size="42" fill="#ffffff" letter-spacing="0.4">
+            مستقبل سوريا التقني
+          </text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- User Cover Image (Priority 1: localStorage uploaded image, Priority 2: ./cover.jpg) -->
+    <img id="coverImg" alt="NEOtech Cover" class="hidden absolute inset-0 w-full h-full object-cover object-center" />
+
+    <!-- Subtle edge vignette only at bottom corners so glass control buttons stay crisp while center stays bright -->
+    <div class="absolute inset-0 pointer-events-none"
+      style="background: radial-gradient(circle at 50% 46%, rgba(0, 8, 20, 0) 46%, rgba(0, 8, 20, 0.45) 100%);"></div>
+  </div>
+
+  <!-- =========================================================================
+       LAYER 2: ULTRA-SLIM FLOATING TOP CORNER CONTROLS (NO CENTER CLUTTER)
+       ========================================================================= -->
+  <header class="fixed top-0 inset-x-0 z-20 px-3 sm:px-5 pt-2.5 sm:pt-3.5 flex items-center justify-between pointer-events-none">
+
+    <!-- Top-Right (RTL Start): Compact BLE Connect / Status Glass Pill -->
+    <button id="bleConnectBtn" type="button"
+      class="pointer-events-auto top-glass px-3 sm:px-4 py-1.5 sm:py-2 rounded-full flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-100 hover:border-cyan-400/70 transition active:scale-95">
+      <span id="bleStatusDot" class="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.85)] shrink-0"></span>
+      <span id="bleStatusText" class="max-w-[165px] sm:max-w-[230px] truncate">اتصال BLE</span>
+    </button>
+
+    <!-- Top-Left (RTL End): Compact Fullscreen Landscape + Settings Icons -->
+    <div class="pointer-events-auto flex items-center gap-2">
+      <!-- Fullscreen & Landscape Lock Button -->
+      <button id="fullscreenBtn" type="button" aria-label="ملء الشاشة والوضع الأفقي" title="ملء الشاشة (أفقي)"
+        class="top-glass w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-sky-200 hover:text-cyan-300 hover:border-cyan-400/70 transition active:scale-95">
+        <svg id="fsIconEnter" class="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+          <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+          <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+          <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+        </svg>
+        <svg id="fsIconExit" class="hidden w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+          <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+          <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+          <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+        </svg>
+      </button>
+
+      <!-- Settings Gear Button -->
+      <button id="openSettingsBtn" type="button" aria-label="الإعدادات" title="الإعدادات"
+        class="top-glass w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-sky-200 hover:text-cyan-300 hover:border-cyan-400/70 transition active:scale-95">
+        <svg class="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- =========================================================================
+       LAYER 3: ERGONOMIC MULTI-TOUCH LANDSCAPE CONTROL BUTTONS ONLY
+       (Explicit dir="ltr" so Left Thumb = Forward/Backward, Right Thumb = Left/Right)
+       ========================================================================= -->
+  <main dir="ltr" class="fixed inset-0 z-10 pointer-events-none flex items-end justify-between px-4 sm:px-8 pb-4 sm:pb-7">
+
+    <!-- Lower-Left Thumb Zone: Forward (▲) & Backward (▼) Stacked Vertically -->
+    <div class="pointer-events-auto flex flex-col gap-3 sm:gap-4 items-center">
+      <button type="button" data-dir="forward" aria-label="أمام"
+        class="drive-btn thumb-btn-vert rounded-2xl flex items-center justify-center">
+        <svg class="w-10 h-10 sm:w-12 sm:h-12 pointer-events-none drop-shadow-[0_0_8px_rgba(56,189,248,0.45)]" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 5.2a1.3 1.3 0 0 1 1.05.53l7.2 9.8a1.3 1.3 0 0 1-1.05 2.07H4.8a1.3 1.3 0 0 1-1.05-2.07l7.2-9.8A1.3 1.3 0 0 1 12 5.2Z" />
+        </svg>
+      </button>
+
+      <button type="button" data-dir="backward" aria-label="خلف"
+        class="drive-btn thumb-btn-vert rounded-2xl flex items-center justify-center">
+        <svg class="w-10 h-10 sm:w-12 sm:h-12 pointer-events-none drop-shadow-[0_0_8px_rgba(56,189,248,0.45)]" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 18.8a1.3 1.3 0 0 1-1.05-.53l-7.2-9.8A1.3 1.3 0 0 1 4.8 6.4h14.4a1.3 1.3 0 0 1 1.05 2.07l-7.2 9.8a1.3 1.3 0 0 1-1.05.53Z" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Lower-Right Thumb Zone: Left (◀) & Right (▶) Side-by-Side Horizontally -->
+    <div class="pointer-events-auto flex flex-row gap-3 sm:gap-4 items-center pb-2 sm:pb-4">
+      <button type="button" data-dir="left" aria-label="يسار"
+        class="drive-btn thumb-btn-horiz rounded-2xl flex items-center justify-center">
+        <svg class="w-10 h-10 sm:w-12 sm:h-12 pointer-events-none drop-shadow-[0_0_8px_rgba(56,189,248,0.45)]" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M5.2 12a1.3 1.3 0 0 1 .53-1.05l9.8-7.2A1.3 1.3 0 0 1 17.6 4.8v14.4a1.3 1.3 0 0 1-2.07 1.05l-9.8-7.2A1.3 1.3 0 0 1 5.2 12Z" />
+        </svg>
+      </button>
+
+      <button type="button" data-dir="right" aria-label="يمين"
+        class="drive-btn thumb-btn-horiz rounded-2xl flex items-center justify-center">
+        <svg class="w-10 h-10 sm:w-12 sm:h-12 pointer-events-none drop-shadow-[0_0_8px_rgba(56,189,248,0.45)]" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M18.8 12a1.3 1.3 0 0 1-.53 1.05l-9.8 7.2A1.3 1.3 0 0 1 6.4 19.2V4.8a1.3 1.3 0 0 1 2.07-1.05l9.8 7.2c.33.24.53.63.53 1.05Z" />
+        </svg>
+      </button>
+    </div>
+  </main>
+
+  <!-- =========================================================================
+       LAYER 4: PORTRAIT ORIENTATION PROMPT OVERLAY
+       ========================================================================= -->
+  <div id="portraitOverlay" class="fixed inset-0 z-30 bg-[#000a1c]/88 backdrop-blur-md flex-col items-center justify-center p-6 text-center">
+    <div class="max-w-xs w-full rounded-3xl bg-[#03193b]/85 border border-cyan-400/35 p-6 shadow-2xl flex flex-col items-center gap-4">
+      <div class="w-16 h-16 rounded-2xl bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center text-cyan-300">
+        <svg class="w-9 h-9 animate-phone-rotate" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="7" y="2" width="10" height="20" rx="2.5" />
+          <line x1="12" y1="18" x2="12.01" y2="18" />
+        </svg>
+      </div>
+      <div>
+        <h2 class="text-lg font-extrabold text-white">يرجى تدوير الموبايل للوضع الأفقي</h2>
+        <p class="text-xs text-sky-200/80 mt-1.5 leading-relaxed">
+          الواجهة مصممة للتحكم بإبهامَي اليدين مع الالتفاف القوسي وإظهار غلاف NEOtech بشكل كامل.
+        </p>
+      </div>
+      <div class="w-full flex flex-col gap-2 pt-1">
+        <button id="portraitLandscapeBtn" type="button"
+          class="w-full py-2.5 rounded-xl bg-gradient-to-l from-cyan-400 to-teal-400 text-[#021533] font-extrabold text-sm shadow-lg active:scale-95 transition">
+          ملء الشاشة (وضع أفقي)
+        </button>
+        <button id="portraitDismissBtn" type="button"
+          class="w-full py-2 rounded-xl bg-slate-900/70 border border-slate-700 text-slate-300 font-bold text-xs hover:text-white active:scale-95 transition">
+          متابعة هكذا
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       LAYER 5: SCROLLABLE DARK-GLASS SETTINGS DRAWER / MODAL (RTL ARABIC)
+       ========================================================================= -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-40 bg-[#000814]/82 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4">
+    <div class="w-full max-w-2xl max-h-[92dvh] rounded-3xl bg-[#041633]/96 border border-cyan-400/30 shadow-2xl flex flex-col overflow-hidden">
+
+      <!-- Modal Header -->
+      <div class="px-5 py-3.5 bg-[#020e24]/90 border-b border-cyan-500/20 flex items-center justify-between shrink-0">
+        <div>
+          <h2 class="text-base sm:text-lg font-extrabold text-white">إعدادات روبوت NEOtech</h2>
+          <p class="text-[11px] text-sky-300/75">استقرار اتصال BLE، الالتفاف القوسي، الغلاف والتشخيص</p>
+        </div>
+        <button id="closeSettingsBtn" type="button" aria-label="إغلاق الإعدادات"
+          class="w-9 h-9 rounded-xl bg-slate-900/70 border border-slate-700/80 text-slate-300 hover:text-white hover:border-cyan-400/60 flex items-center justify-center transition">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- Modal Scrollable Content -->
+      <div class="modal-scroll flex-1 overflow-y-auto p-4 sm:p-5 space-y-5 text-sm">
+
+        <!-- ===== SECTION 1: BLE & STABILITY ===== -->
+        <section class="rounded-2xl bg-[#020f26]/80 border border-cyan-500/20 p-4 space-y-3.5">
+          <h3 class="text-sm font-extrabold text-cyan-300 flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-cyan-400"></span>
+            إعدادات البلوتوث والثبات (منع الفصل)
+          </h3>
+
+          <!-- Preset Selector -->
+          <div>
+            <label for="presetSelect" class="block text-xs font-bold text-slate-300 mb-1">نوع شريحة البلوتوث (Preset)</label>
+            <select id="presetSelect"
+              class="w-full px-3 py-2 rounded-xl bg-[#061c40] border border-slate-700 focus:border-cyan-400 focus:outline-none text-xs sm:text-sm text-white">
+              <option value="hm10">HM-10 / AT-09 / JDY-08 (0xFFE0 / 0xFFE1)</option>
+              <option value="esp32">ESP32 Nordic UART (6e400001...)</option>
+              <option value="auto">بحث تلقائي عن أول خاصية كتابة (Auto-Discover)</option>
+              <option value="custom">مخصص (Custom UUID)</option>
+            </select>
+          </div>
+
+          <!-- UUID Inputs -->
+          <div id="uuidInputsBox" class="grid grid-cols-1 sm:grid-cols-3 gap-2.5" dir="ltr">
+            <div>
+              <label for="serviceUuidInput" class="block text-[11px] font-mono text-slate-400 mb-1">Service UUID</label>
+              <input id="serviceUuidInput" type="text"
+                class="w-full px-2.5 py-1.5 rounded-lg bg-[#061c40] border border-slate-700 focus:border-cyan-400 focus:outline-none text-[11px] font-mono text-cyan-300" />
+            </div>
+            <div>
+              <label for="txUuidInput" class="block text-[11px] font-mono text-slate-400 mb-1">TX UUID (Write)</label>
+              <input id="txUuidInput" type="text"
+                class="w-full px-2.5 py-1.5 rounded-lg bg-[#061c40] border border-slate-700 focus:border-cyan-400 focus:outline-none text-[11px] font-mono text-cyan-300" />
+            </div>
+            <div>
+              <label for="rxUuidInput" class="block text-[11px] font-mono text-slate-400 mb-1">RX UUID (Notify)</label>
+              <input id="rxUuidInput" type="text"
+                class="w-full px-2.5 py-1.5 rounded-lg bg-[#061c40] border border-slate-700 focus:border-cyan-400 focus:outline-none text-[11px] font-mono text-emerald-300" />
+            </div>
+          </div>
+
+          <!-- Auto-Reconnect & RX Notifications Toggles -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <label class="flex items-center justify-between gap-2 p-3 rounded-xl bg-[#051836] border border-slate-800 cursor-pointer">
+              <div>
+                <span class="block text-xs font-bold text-white">إعادة الاتصال التلقائي</span>
+                <span class="block text-[10px] text-slate-400 mt-0.5">يعيد الربط تلقائياً حتى 5 محاولات عند أي فصل</span>
+              </div>
+              <input id="autoReconnectToggle" type="checkbox" class="w-5 h-5 accent-cyan-400 shrink-0 cursor-pointer" />
+            </label>
+
+            <label class="flex items-center justify-between gap-2 p-3 rounded-xl bg-[#051836] border border-slate-800 cursor-pointer">
+              <div>
+                <span class="block text-xs font-bold text-white">تفعيل استقبال RX Notifications</span>
+                <span class="block text-[10px] text-amber-300/80 mt-0.5">معطّل افتراضياً لمنع فصل شرائح HM-10/JDY-08</span>
+              </div>
+              <input id="rxNotifyToggle" type="checkbox" class="w-5 h-5 accent-cyan-400 shrink-0 cursor-pointer" />
+            </label>
+          </div>
+
+          <!-- Keep-Alive Heartbeat & Line Ending -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div>
+              <label for="keepAliveModeSelect" class="block text-xs font-bold text-slate-300 mb-1">نبضة إبقاء الاتصال (Keep-Alive)</label>
+              <select id="keepAliveModeSelect"
+                class="w-full px-2.5 py-2 rounded-xl bg-[#061c40] border border-slate-700 focus:border-cyan-400 focus:outline-none text-xs text-white">
+                <option value="safe_stop">توقف آمن (افتراضي)</option>
+                <option value="newline">نبضة فارغة (\n)</option>
+                <option value="off">إيقاف</option>
+              </select>
+            </div>
+            <div>
+              <label for="keepAliveSecInput" class="block text-xs font-bold text-slate-300 mb-1">فاصل النبضة (ثوانٍ)</label>
+              <input id="keepAliveSecInput" type="number" min="1" max="20" step="1" dir="ltr"
+                class="w-full px-3 py-2 rounded-xl bg-[#061c40] border border-slate-700 focus:border-cyan-400 focus:outline-none text-xs font-mono text-center text-cyan-300" />
+            </div>
+            <div>
+              <label for="lineEndingSelect" class="block text-xs font-bold text-slate-300 mb-1">نهاية السطر (Line Ending)</label>
+              <select id="lineEndingSelect" dir="ltr"
+                class="w-full px-2.5 py-2 rounded-xl bg-[#061c40] border border-slate-700 focus:border-cyan-400 focus:outline-none text-xs font-mono text-cyan-300">
+                <option value="lf">\n (LF)</option>
+                <option value="crlf">\r\n (CRLF)</option>
+                <option value="none">بدون (None)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Packet Throttle Delay Slider (25ms - 150ms) -->
+          <div class="p-3 rounded-xl bg-[#051836] border border-slate-800">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-bold text-slate-200">الفاصل الزمني بين الحزم (Throttle)</span>
+              <span id="throttleValueLabel" dir="ltr" class="font-mono text-xs font-bold text-cyan-300">45 ms</span>
+            </div>
+            <div dir="ltr">
+              <input id="throttleSlider" type="range" min="25" max="150" step="5" value="45" class="neo-range w-full" />
+            </div>
+            <div class="flex justify-between text-[10px] text-slate-400 mt-1" dir="ltr">
+              <span>25ms (أسرع)</span>
+              <span>45ms (متوازن)</span>
+              <span>150ms (أكثر أماناً للشرائح البطيئة)</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== SECTION 2: DRIVING & ARC TURNING ===== -->
+        <section class="rounded-2xl bg-[#020f26]/80 border border-cyan-500/20 p-4 space-y-3.5">
+          <h3 class="text-sm font-extrabold text-teal-300 flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-teal-400"></span>
+            إعدادات القيادة والالتفاف القوسي
+          </h3>
+
+          <!-- Protocol Switcher -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <label class="p-3 rounded-xl bg-[#051836] border border-slate-700 has-[:checked]:border-teal-400 has-[:checked]:bg-teal-500/10 cursor-pointer transition">
+              <div class="flex items-center gap-2">
+                <input type="radio" name="protocolMode" value="differential" class="accent-teal-400 w-4 h-4" />
+                <span class="text-xs font-extrabold text-white">خلط المحركات (<span class="font-mono text-teal-300">M:L,R</span>)</span>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1">يحسب سرعة العجلة اليسرى واليمنى (-255 إلى 255) للقوس الدقيق.</p>
+            </label>
+
+            <label class="p-3 rounded-xl bg-[#051836] border border-slate-700 has-[:checked]:border-cyan-400 has-[:checked]:bg-cyan-500/10 cursor-pointer transition">
+              <div class="flex items-center gap-2">
+                <input type="radio" name="protocolMode" value="chars" class="accent-cyan-400 w-4 h-4" />
+                <span class="text-xs font-extrabold text-white">أحرف 8 اتجاهات (<span class="font-mono text-cyan-300">F,B,L,R,G,I,H,J,S</span>)</span>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1">يرسل حرفاً واحداً لكل اتجاه مستقيم أو قوسي.</p>
+            </label>
+          </div>
+
+          <!-- Max Speed & Arc Smoothness Sliders -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="p-3 rounded-xl bg-[#051836] border border-slate-800">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs font-bold text-slate-200">السرعة القصوى (PWM)</span>
+                <span id="maxSpeedLabel" dir="ltr" class="font-mono text-xs font-extrabold text-cyan-300">220</span>
+              </div>
+              <div dir="ltr">
+                <input id="maxSpeedSlider" type="range" min="80" max="255" step="5" value="220" class="neo-range w-full" />
+              </div>
+            </div>
+
+            <div class="p-3 rounded-xl bg-[#051836] border border-slate-800">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs font-bold text-slate-200">نعومة القوس (العجلة الداخلية)</span>
+                <span id="arcRatioLabel" dir="ltr" class="font-mono text-xs font-extrabold text-teal-300">40%</span>
+              </div>
+              <div dir="ltr">
+                <input id="arcRatioSlider" type="range" min="0" max="80" step="5" value="40" class="neo-range w-full" />
+              </div>
+              <p id="arcFormulaPreview" dir="ltr" class="text-[10px] font-mono text-sky-300/80 mt-1 text-center">
+                أمام + يمين → M:220,88
+              </p>
+            </div>
+          </div>
+
+          <!-- Editable 8-Direction Characters -->
+          <div id="charsConfigBox" class="space-y-2 pt-1">
+            <span class="block text-xs font-bold text-slate-300">أحرف الـ 8 اتجاهات والتوقف (قابلة للتعديل):</span>
+            <div class="grid grid-cols-3 sm:grid-cols-5 gap-2" dir="ltr">
+              <div class="bg-[#051836] p-1.5 rounded-lg border border-slate-800">
+                <label for="cmdF" class="block text-[10px] text-slate-400 text-center font-sans">أمام</label>
+                <input id="cmdF" type="text" class="w-full bg-transparent text-center font-mono text-xs font-bold text-cyan-300 focus:outline-none" />
+              </div>
+              <div class="bg-[#051836] p-1.5 rounded-lg border border-slate-800">
+                <label for="cmdB" class="block text-[10px] text-slate-400 text-center font-sans">خلف</label>
+                <input id="cmdB" type="text" class="w-full bg-transparent text-center font-mono text-xs font-bold text-cyan-300 focus:outline-none" />
+              </div>
+              <div class="bg-[#051836] p-1.5 rounded-lg border border-slate-800">
+                <label for="cmdL" class="block text-[10px] text-slate-400 text-center font-sans">يسار</label>
+                <input id="cmdL" type="text" class="w-full bg-transparent text-center font-mono text-xs font-bold text-cyan-300 focus:outline-none" />
+              </div>
+              <div class="bg-[#051836] p-1.5 rounded-lg border border-slate-800">
+                <label for="cmdR" class="block text-[10px] text-slate-400 text-center font-sans">يمين</label>
+                <input id="cmdR" type="text" class="w-full bg-transparent text-center font-mono text-xs font-bold text-cyan-300 focus:outline-none" />
+              </div>
+              <div class="bg-[#051836] p-1.5 rounded-lg border border-rose-500/35">
+                <label for="cmdS" class="block text-[10px] text-rose-300 text-center font-sans">توقف</label>
+                <input id="cmdS" type="text" class="w-full bg-transparent text-center font-mono text-xs font-bold text-rose-300 focus:outline-none" />
+              </div>
+              <div class="bg-[#051836] p-1.5 rounded-lg border border-teal-500/30">
+                <label for="cmdFL" class="block text-[10px] text-teal-300 text-center font-sans">أمام-يسار</label>
+                <input id="cmdFL" type="text" class="w-full bg-transparent text-center font-mono text-xs font-bold text-teal-300 focus:outline-none" />
+              </div>
+              <div class="bg-[#051836] p-1.5 rounded-lg border border-teal-500/30">
+                <label for="cmdFR" class="block text-[10px] text-teal-300 text-center font-sans">أمام-يمين</label>
+                <input id="cmdFR" type="text" class="w-full bg-transparent text-center font-mono text-xs font-bold text-teal-300 focus:outline-none" />
+              </div>
+              <div class="bg-[#051836] p-1.5 rounded-lg border border-amber-500/30">
+                <label for="cmdBL" class="block text-[10px] text-amber-300 text-center font-sans">خلف-يسار</label>
+                <input id="cmdBL" type="text" class="w-full bg-transparent text-center font-mono text-xs font-bold text-amber-300 focus:outline-none" />
+              </div>
+              <div class="bg-[#051836] p-1.5 rounded-lg border border-amber-500/30">
+                <label for="cmdBR" class="block text-[10px] text-amber-300 text-center font-sans">خلف-يمين</label>
+                <input id="cmdBR" type="text" class="w-full bg-transparent text-center font-mono text-xs font-bold text-amber-300 focus:outline-none" />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== SECTION 3: COVER BACKGROUND IMAGE ===== -->
+        <section class="rounded-2xl bg-[#020f26]/80 border border-cyan-500/20 p-4 space-y-3">
+          <h3 class="text-sm font-extrabold text-sky-300 flex items-center gap-2">
+            <span class="w-1.5 h-4 rounded-full bg-sky-400"></span>
+            صورة الغلاف (خلفية التطبيق)
+          </h3>
+          <p class="text-[11px] text-slate-300/85 leading-relaxed">
+            يعرض التطبيق ملف <span class="font-mono text-cyan-300">cover.jpg</span> تلقائياً إذا رفعته بجانب <span class="font-mono text-cyan-300">index.html</span>، أو يمكنك اختيار الصورة مباشرة من معرض موبايلك لتُحفظ دائماً.
+          </p>
+          <div class="flex flex-wrap items-center gap-2.5">
+            <label for="coverFileInput"
+              class="px-4 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/45 text-cyan-200 text-xs font-bold cursor-pointer transition active:scale-95">
+              اختيار صورة من الموبايل
+            </label>
+            <input id="coverFileInput" type="file" accept="image/*" class="hidden" />
+
+            <button id="resetCoverBtn" type="button"
+              class="px-3.5 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold transition active:scale-95">
+              استعادة غلاف NEOtech الافتراضي
+            </button>
+          </div>
+        </section>
+
+        <!-- ===== SECTION 4: DEMO MODE & DIAGNOSTIC LOGS ===== -->
+        <section class="rounded-2xl bg-[#020f26]/80 border border-cyan-500/20 p-4 space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="text-sm font-extrabold text-emerald-300 flex items-center gap-2">
+              <span class="w-1.5 h-4 rounded-full bg-emerald-400"></span>
+              وضع التجربة وسجل التشخيص
+            </h3>
+            <button id="clearLogBtn" type="button"
+              class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-300 hover:text-white transition">
+              مسح السجل
+            </button>
+          </div>
+
+          <label class="flex items-center justify-between gap-3 p-3 rounded-xl bg-[#051836] border border-slate-800 cursor-pointer">
+            <div>
+              <span class="block text-xs font-bold text-white">تفعيل وضع التجربة (Demo Mode)</span>
+              <span class="block text-[10px] text-slate-400 mt-0.5">اختبر أزرار الالتفاف القوسي وراقب الأوامر المرسلة بدون شريحة بلوتوث</span>
+            </div>
+            <input id="demoModeToggle" type="checkbox" class="w-5 h-5 accent-emerald-400 shrink-0 cursor-pointer" />
+          </label>
+
+          <!-- Compact Diagnostic Log Box -->
+          <div id="diagLogBox" dir="ltr"
+            class="h-36 overflow-y-auto modal-scroll rounded-xl bg-[#010918] border border-slate-800 p-2.5 font-mono text-[11px] leading-relaxed space-y-1">
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-5 py-3 bg-[#020e24]/95 border-t border-cyan-500/20 flex items-center justify-between gap-2 shrink-0">
+        <button id="resetAllBtn" type="button"
+          class="px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-700 hover:border-rose-400/60 text-xs font-bold text-slate-300 hover:text-rose-300 transition">
+          إعادة الضبط
+        </button>
+        <button id="doneSettingsBtn" type="button"
+          class="px-6 py-2 rounded-xl bg-gradient-to-l from-cyan-400 to-teal-400 text-[#021533] text-xs sm:text-sm font-extrabold shadow-lg active:scale-95 transition">
+          تم وحفظ
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       LAYER 6: NON-BLOCKING TOAST NOTIFICATIONS
+       ========================================================================= -->
+  <div id="toastRoot" class="fixed top-14 inset-x-0 z-50 flex flex-col items-center gap-1.5 pointer-events-none px-4"></div>
+
+  <!-- =========================================================================
+       APPLICATION JAVASCRIPT: ROCK-SOLID BLE ENGINE + MULTI-TOUCH ARC DRIVING
+       ========================================================================= -->
+  <script>
+    (() => {
+      'use strict';
+
+      /* -----------------------------------------------------------------------
+         1. CONSTANTS, PRESETS & STORAGE KEYS
+         ----------------------------------------------------------------------- */
+      const CONFIG_STORAGE_KEY = 'neotech_ble_robot_config_v4';
+      const COVER_STORAGE_KEY  = 'neotech_ble_custom_cover_v1';
+
+      const RECONNECT_BACKOFF_MS = [600, 1500, 3000, 5000, 5000];
+      const RX_ENABLE_DELAY_MS   = 600;
+      const DOUBLE_STOP_GAP_MS   = 65;
+      const BLE_MTU_CHUNK        = 20;
+
+      const PRESETS = {
+        hm10: {
+          service: '0000ffe0-0000-1000-8000-00805f9b34fb',
+          tx:      '0000ffe1-0000-1000-8000-00805f9b34fb',
+          rx:      '0000ffe1-0000-1000-8000-00805f9b34fb',
+        },
+        esp32: {
+          service: '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
+          tx:      '6e400002-b5a3-f393-e0a9-e50e24dcca9e',
+          rx:      '6e400003-b5a3-f393-e0a9-e50e24dcca9e',
+        },
+      };
+
+      // Broad optionalServices list so Android Chrome allows Auto-Discover on all common BLE UART chips
+      const COMMON_UART_SERVICES = [
+        '0000ffe0-0000-1000-8000-00805f9b34fb',
+        '0000ffe1-0000-1000-8000-00805f9b34fb',
+        '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
+        '0000fff0-0000-1000-8000-00805f9b34fb',
+        '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+      ];
+
+      const DEFAULT_CONFIG = {
+        preset: 'hm10',
+        serviceUuid: PRESETS.hm10.service,
+        txUuid: PRESETS.hm10.tx,
+        rxUuid: PRESETS.hm10.rx,
+        autoReconnect: true,
+        keepAliveMode: 'safe_stop', // 'safe_stop' | 'newline' | 'off'
+        keepAliveSec: 4,
+        throttleMs: 45,
+        rxNotify: false,            // OFF by default to prevent HM-10/JDY-08 disconnects
+        lineEnding: 'lf',           // 'lf' | 'crlf' | 'none'
+        protocol: 'differential',   // 'differential' | 'chars'
+        maxSpeed: 220,
+        arcRatio: 40,               // 0..80% inner wheel speed ratio
+        demoMode: false,
+        cmds: {
+          f: 'F', b: 'B', l: 'L', r: 'R', s: 'S',
+          fl: 'G', fr: 'I', bl: 'H', br: 'J',
+        },
+      };
+
+      /* -----------------------------------------------------------------------
+         2. RUNTIME STATE
+         ----------------------------------------------------------------------- */
+      let config = loadConfig();
+
+      const state = {
+        // BLE connection lifecycle
+        status: 'disconnected', // 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'demo'
+        device: null,
+        server: null,
+        txChar: null,
+        rxChar: null,
+        writeMethodName: 'none',
+        manualDisconnect: false,
+        reconnectIndex: 0,
+        reconnectTimer: null,
+        rxTimer: null,
+
+        // Serialized Non-Blocking Write Queue with Coalescing & Priority STOP
+        isWriting: false,
+        lastWriteEndMs: 0,
+        lastTxSentMs: Date.now(),
+        pendingMotionPacket: null, // Coalesced latest motion command
+        pendingPriorityQueue: [],  // High-priority STOP or explicit packets
+        drainTimer: null,
+        doubleStopTimer: null,
+        keepAliveTimer: null,
+
+        // Wake Lock sentinel
+        wakeLock: null,
+
+        // Active multi-touch pointers & keyboard state
+        activePointers: new Map(), // pointerId -> 'forward' | 'backward' | 'left' | 'right'
+        activeKeys: new Set(),     // 'forward' | 'backward' | 'left' | 'right'
+        lastMotionKey: 's',
+
+        // Reset confirmation state (no window.confirm)
+        resetArmed: false,
+        resetArmTimer: null,
+      };
+
+      const encoder = new TextEncoder();
+      const decoder = new TextDecoder('utf-8');
+
+      /* -----------------------------------------------------------------------
+         3. DOM REFERENCES
+         ----------------------------------------------------------------------- */
+      const els = {
+        coverImg: document.getElementById('coverImg'),
+        builtinCover: document.getElementById('builtinCover'),
+
+        bleConnectBtn: document.getElementById('bleConnectBtn'),
+        bleStatusDot: document.getElementById('bleStatusDot'),
+        bleStatusText: document.getElementById('bleStatusText'),
+
+        fullscreenBtn: document.getElementById('fullscreenBtn'),
+        fsIconEnter: document.getElementById('fsIconEnter'),
+        fsIconExit: document.getElementById('fsIconExit'),
+        openSettingsBtn: document.getElementById('openSettingsBtn'),
+
+        portraitOverlay: document.getElementById('portraitOverlay'),
+        portraitLandscapeBtn: document.getElementById('portraitLandscapeBtn'),
+        portraitDismissBtn: document.getElementById('portraitDismissBtn'),
+
+        settingsModal: document.getElementById('settingsModal'),
+        closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+        doneSettingsBtn: document.getElementById('doneSettingsBtn'),
+        resetAllBtn: document.getElementById('resetAllBtn'),
+
+        presetSelect: document.getElementById('presetSelect'),
+        uuidInputsBox: document.getElementById('uuidInputsBox'),
+        serviceUuidInput: document.getElementById('serviceUuidInput'),
+        txUuidInput: document.getElementById('txUuidInput'),
+        rxUuidInput: document.getElementById('rxUuidInput'),
+
+        autoReconnectToggle: document.getElementById('autoReconnectToggle'),
+        rxNotifyToggle: document.getElementById('rxNotifyToggle'),
+        keepAliveModeSelect: document.getElementById('keepAliveModeSelect'),
+        keepAliveSecInput: document.getElementById('keepAliveSecInput'),
+        lineEndingSelect: document.getElementById('lineEndingSelect'),
+        throttleSlider: document.getElementById('throttleSlider'),
+        throttleValueLabel: document.getElementById('throttleValueLabel'),
+
+        maxSpeedSlider: document.getElementById('maxSpeedSlider'),
+        maxSpeedLabel: document.getElementById('maxSpeedLabel'),
+        arcRatioSlider: document.getElementById('arcRatioSlider'),
+        arcRatioLabel: document.getElementById('arcRatioLabel'),
+        arcFormulaPreview: document.getElementById('arcFormulaPreview'),
+        charsConfigBox: document.getElementById('charsConfigBox'),
+
+        cmdF: document.getElementById('cmdF'),
+        cmdB: document.getElementById('cmdB'),
+        cmdL: document.getElementById('cmdL'),
+        cmdR: document.getElementById('cmdR'),
+        cmdS: document.getElementById('cmdS'),
+        cmdFL: document.getElementById('cmdFL'),
+        cmdFR: document.getElementById('cmdFR'),
+        cmdBL: document.getElementById('cmdBL'),
+        cmdBR: document.getElementById('cmdBR'),
+
+        coverFileInput: document.getElementById('coverFileInput'),
+        resetCoverBtn: document.getElementById('resetCoverBtn'),
+
+        demoModeToggle: document.getElementById('demoModeToggle'),
+        diagLogBox: document.getElementById('diagLogBox'),
+        clearLogBtn: document.getElementById('clearLogBtn'),
+
+        toastRoot: document.getElementById('toastRoot'),
+        driveBtns: Array.from(document.querySelectorAll('.drive-btn')),
+      };
+
+      /* -----------------------------------------------------------------------
+         4. CONFIGURATION PERSISTENCE & DIAGNOSTIC LOGGING
+         ----------------------------------------------------------------------- */
+      function loadConfig() {
+        try {
+          const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
+          if (!raw) return structuredClone(DEFAULT_CONFIG);
+          const parsed = JSON.parse(raw);
+          return {
+            ...structuredClone(DEFAULT_CONFIG),
+            ...parsed,
+            cmds: { ...DEFAULT_CONFIG.cmds, ...(parsed.cmds || {}) },
+          };
+        } catch (err) {
+          return structuredClone(DEFAULT_CONFIG);
+        }
+      }
+
+      function saveConfig() {
+        try {
+          localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+        } catch (err) {
+          addLog('ERR', 'تعذر حفظ الإعدادات في localStorage');
+        }
+      }
+
+      function addLog(tag, message) {
+        const now = new Date();
+        const ts = now.toTimeString().slice(0, 8);
+        const colors = {
+          TX:   'text-cyan-300',
+          RX:   'text-emerald-300',
+          BLE:  'text-sky-300',
+          KA:   'text-slate-500',
+          WARN: 'text-amber-300',
+          ERR:  'text-rose-400',
+        };
+        const row = document.createElement('div');
+        row.className = 'flex items-start gap-2 break-all';
+        row.innerHTML = `<span class="text-slate-600 shrink-0">${ts}</span><span class="font-bold shrink-0 ${colors[tag] || 'text-slate-300'}">[${tag}]</span><span class="text-slate-200">${escapeHtml(message)}</span>`;
+        els.diagLogBox.appendChild(row);
+
+        // Cap diagnostic log to 140 entries for low memory usage
+        while (els.diagLogBox.children.length > 140) {
+          els.diagLogBox.removeChild(els.diagLogBox.firstChild);
+        }
+        els.diagLogBox.scrollTop = els.diagLogBox.scrollHeight;
+      }
+
+      function escapeHtml(str) {
+        return String(str).replace(/[&<>"']/g, (c) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[c]));
+      }
+
+      function showToast(text, tone = 'info') {
+        const styles = {
+          info:    'bg-[#041b3d]/95 border-cyan-400/50 text-sky-100',
+          success: 'bg-emerald-950/95 border-emerald-400/60 text-emerald-100',
+          warn:    'bg-amber-950/95 border-amber-400/60 text-amber-100',
+          error:   'bg-rose-950/95 border-rose-400/60 text-rose-100',
+        };
+        const toast = document.createElement('div');
+        toast.className = `px-4 py-2 rounded-full border text-xs font-bold shadow-xl backdrop-blur-md transition-all duration-200 opacity-0 -translate-y-2 ${styles[tone] || styles.info}`;
+        toast.textContent = text;
+        els.toastRoot.appendChild(toast);
+
+        requestAnimationFrame(() => {
+          toast.classList.remove('opacity-0', '-translate-y-2');
+        });
+        setTimeout(() => {
+          toast.classList.add('opacity-0', '-translate-y-2');
+          setTimeout(() => toast.remove(), 220);
+        }, 2600);
+      }
+
+      /* -----------------------------------------------------------------------
+         5. COVER BACKGROUND LOADER (localStorage -> ./cover.jpg -> Built-in SVG)
+         ----------------------------------------------------------------------- */
+      function initCoverBackground() {
+        // Priority 1: User-uploaded custom cover stored in localStorage
+        try {
+          const savedCover = localStorage.getItem(COVER_STORAGE_KEY);
+          if (savedCover && savedCover.startsWith('data:image/')) {
+            applyCoverImage(savedCover, 'custom');
+            return;
+          }
+        } catch (err) {
+          // Ignore storage read failure and proceed to ./cover.jpg
+        }
+
+        // Priority 2: ./cover.jpg hosted alongside index.html on GitHub Pages
+        applyCoverImage('./cover.jpg', 'file');
+      }
+
+      function applyCoverImage(src, sourceKind) {
+        els.coverImg.onload = () => {
+          els.coverImg.classList.remove('hidden');
+          els.builtinCover.classList.add('opacity-0');
+          addLog('BLE', sourceKind === 'custom' ? 'تم تحميل الغلاف المخصص المحفوظ' : 'تم تحميل صورة الغلاف ./cover.jpg');
+        };
+        els.coverImg.onerror = () => {
+          els.coverImg.classList.add('hidden');
+          els.builtinCover.classList.remove('opacity-0');
+        };
+        els.coverImg.src = src;
+      }
+
+      function handleCoverUpload(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              // Downscale to max 1280px wide & JPEG 0.82 to safely persist inside localStorage
+              const maxW = 1280;
+              const scale = Math.min(1, maxW / img.width);
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.round(img.width * scale);
+              canvas.height = Math.round(img.height * scale);
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+              localStorage.setItem(COVER_STORAGE_KEY, dataUrl);
+              applyCoverImage(dataUrl, 'custom');
+              showToast('تم حفظ صورة الغلاف بنجاح', 'success');
+            } catch (err) {
+              showToast('حجم الصورة كبير، جرب صورة أصغر', 'error');
+              addLog('ERR', `فشل حفظ الغلاف: ${err.message}`);
+            }
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      function resetCoverToDefault() {
+        try {
+          localStorage.removeItem(COVER_STORAGE_KEY);
+        } catch (err) { /* ignore */ }
+        els.coverImg.classList.add('hidden');
+        els.builtinCover.classList.remove('opacity-0');
+        applyCoverImage('./cover.jpg', 'file');
+        showToast('تمت استعادة غلاف NEOtech الافتراضي', 'info');
+      }
+
+      /* -----------------------------------------------------------------------
+         6. SCREEN WAKE LOCK & FULLSCREEN LANDSCAPE HELPER
+         ----------------------------------------------------------------------- */
+      async function acquireWakeLock() {
+        if (!('wakeLock' in navigator)) return;
+        try {
+          if (state.wakeLock) return;
+          state.wakeLock = await navigator.wakeLock.request('screen');
+          state.wakeLock.addEventListener('release', () => {
+            state.wakeLock = null;
+          });
+          addLog('BLE', 'Wake Lock مفعّل لمنع انطفاء الشاشة');
+        } catch (err) {
+          // Silently ignore if battery saver or iframe denies Wake Lock
+        }
+      }
+
+      async function releaseWakeLock() {
+        if (!state.wakeLock) return;
+        try {
+          await state.wakeLock.release();
+          state.wakeLock = null;
+        } catch (err) { /* ignore */ }
+      }
+
+      async function toggleFullscreenLandscape(forceEnter = false) {
+        try {
+          const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+          if (!isFs) {
+            const root = document.documentElement;
+            if (root.requestFullscreen) {
+              await root.requestFullscreen();
+            } else if (root.webkitRequestFullscreen) {
+              await root.webkitRequestFullscreen();
+            }
+            if (screen.orientation && screen.orientation.lock) {
+              try {
+                await screen.orientation.lock('landscape');
+              } catch (e) { /* Some browsers restrict orientation lock */ }
+            }
+          } else if (!forceEnter) {
+            if (document.exitFullscreen) {
+              await document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+              await document.webkitExitFullscreen();
+            }
+          }
+          updateFullscreenIcon();
+        } catch (err) {
+          showToast('دوّر الهاتف يدوياً للوضع الأفقي', 'info');
+        }
+      }
+
+      function updateFullscreenIcon() {
+        const isFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+        els.fsIconEnter.classList.toggle('hidden', isFs);
+        els.fsIconExit.classList.toggle('hidden', !isFs);
+      }
+
+      /* -----------------------------------------------------------------------
+         7. UI STATUS PILL UPDATER
+         ----------------------------------------------------------------------- */
+      function setConnectionUI(status, customLabel = null) {
+        state.status = status;
+        els.bleStatusDot.className = 'w-2.5 h-2.5 rounded-full shrink-0';
+
+        if (status === 'connected') {
+          els.bleStatusDot.classList.add('bg-emerald-400', 'shadow-[0_0_10px_rgba(52,211,153,0.9)]');
+          els.bleStatusText.textContent = customLabel || (state.device?.name || 'متصل BLE');
+        } else if (status === 'connecting') {
+          els.bleStatusDot.classList.add('bg-amber-400', 'dot-pulse', 'shadow-[0_0_10px_rgba(251,191,36,0.9)]');
+          els.bleStatusText.textContent = customLabel || 'جاري الاتصال...';
+        } else if (status === 'reconnecting') {
+          els.bleStatusDot.classList.add('bg-amber-400', 'dot-pulse', 'shadow-[0_0_10px_rgba(251,191,36,0.9)]');
+          els.bleStatusText.textContent = customLabel || 'جاري إعادة الاتصال...';
+        } else if (status === 'demo') {
+          els.bleStatusDot.classList.add('bg-cyan-400', 'shadow-[0_0_10px_rgba(34,211,238,0.9)]');
+          els.bleStatusText.textContent = 'وضع التجربة (Demo)';
+        } else {
+          els.bleStatusDot.classList.add('bg-rose-500', 'shadow-[0_0_10px_rgba(244,63,94,0.85)]');
+          els.bleStatusText.textContent = 'اتصال BLE';
+        }
+      }
+
+      /* -----------------------------------------------------------------------
+         8. ROCK-SOLID WEB BLUETOOTH STABILITY ENGINE
+         ----------------------------------------------------------------------- */
+      function normalizeUuid(val) {
+        const s = String(val || '').trim().toLowerCase();
+        if (!s) return '';
+        // Allow short 16-bit UUIDs like 0xffe0 or ffe0
+        const shortMatch = s.match(/^(?:0x)?([0-9a-f]{4})$/);
+        if (shortMatch) {
+          return `0000${shortMatch[1]}-0000-1000-8000-00805f9b34fb`;
+        }
+        return s;
+      }
+
+      function getLineEndingStr() {
+        if (config.lineEnding === 'crlf') return '\r\n';
+        if (config.lineEnding === 'lf') return '\n';
+        return '';
+      }
+
+      async function handleConnectButtonClick() {
+        // If Demo mode is active, explain or turn off demo to connect real BLE
+        if (config.demoMode) {
+          config.demoMode = false;
+          els.demoModeToggle.checked = false;
+          saveConfig();
+          setConnectionUI('disconnected');
+        }
+
+        // If currently reconnecting, cancel auto-reconnect cleanly
+        if (state.status === 'reconnecting') {
+          cancelAutoReconnect(true);
+          showToast('تم إلغاء إعادة الاتصال', 'info');
+          return;
+        }
+
+        // If connected, send STOP first and perform clean manual disconnect
+        if (state.status === 'connected') {
+          await manualDisconnectBLE();
+          return;
+        }
+
+        if (state.status === 'connecting') return;
+
+        await connectNewDevice();
+      }
+
+      async function connectNewDevice() {
+        if (!navigator.bluetooth) {
+          showToast('المتصفح لا يدعم Web Bluetooth — استخدم Chrome على أندرويد', 'error');
+          addLog('ERR', 'Web Bluetooth غير مدعوم في هذا المتصفح أو يحتاج رابط HTTPS');
+          return;
+        }
+
+        state.manualDisconnect = false;
+        cancelAutoReconnect(false);
+        setConnectionUI('connecting', 'جاري البحث...');
+
+        // Assemble broad optionalServices including user custom UUID
+        const optionalSet = new Set(COMMON_UART_SERVICES);
+        const customSvc = normalizeUuid(config.serviceUuid);
+        if (customSvc && /^[0-9a-f-]{36}$/.test(customSvc)) {
+          optionalSet.add(customSvc);
+        }
+
+        try {
+          addLog('BLE', 'فتح نافذة اختيار أجهزة BLE...');
+          const device = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: Array.from(optionalSet),
+          });
+
+          // Clean previous device listener if switching devices
+          if (state.device && state.device !== device) {
+            state.device.removeEventListener('gattserverdisconnected', onGattDisconnected);
+          }
+
+          state.device = device;
+          state.device.removeEventListener('gattserverdisconnected', onGattDisconnected);
+          state.device.addEventListener('gattserverdisconnected', onGattDisconnected);
+
+          await establishGattSession(device, false);
+        } catch (err) {
+          if (err && err.name === 'NotFoundError') {
+            addLog('WARN', 'تم إلغاء اختيار الجهاز');
+          } else {
+            addLog('ERR', `فشل الاتصال: ${err.message || err}`);
+            showToast('تعذر الاتصال بشريحة البلوتوث', 'error');
+          }
+          setConnectionUI(config.demoMode ? 'demo' : 'disconnected');
+        }
+      }
+
+      async function establishGattSession(device, isReconnect) {
+        setConnectionUI(
+          isReconnect ? 'reconnecting' : 'connecting',
+          isReconnect ? `إعادة الاتصال (${state.reconnectIndex}/${RECONNECT_BACKOFF_MS.length})...` : 'جاري الربط...'
+        );
+
+        const server = await device.gatt.connect();
+        state.server = server;
+
+        // Discover TX (and optional RX) characteristics with robust fallback
+        const { txChar, rxChar, serviceUuidFound } = await discoverCharacteristics(server);
+        if (!txChar) {
+          throw new Error('لم يتم العثور على خاصية كتابة (Writable Characteristic) على الشريحة');
+        }
+
+        state.txChar = txChar;
+        state.rxChar = rxChar;
+        state.writeMethodName = detectSafeWriteMethod(txChar);
+        state.reconnectIndex = 0;
+        state.lastTxSentMs = Date.now();
+
+        setConnectionUI('connected', device.name || 'روبوت NEOtech');
+        addLog('BLE', `تم الاتصال بـ "${device.name || 'BLE'}" | Service: ${serviceUuidFound.slice(0, 8)} | Write: ${state.writeMethodName}`);
+        showToast(`متصل بـ ${device.name || 'الروبوت'}`, 'success');
+
+        // Keep screen awake & start idle keep-alive timer
+        acquireWakeLock();
+        startKeepAliveTimer();
+
+        // Optional RX Notifications: OFF by default; if enabled, delay 600ms inside safe try/catch
+        clearTimeout(state.rxTimer);
+        if (config.rxNotify && state.rxChar) {
+          state.rxTimer = setTimeout(() => enableRxNotificationsSafely(state.rxChar), RX_ENABLE_DELAY_MS);
+        }
+      }
+
+      async function discoverCharacteristics(server) {
+        const targetSvcUuid = normalizeUuid(config.serviceUuid);
+        const targetTxUuid  = normalizeUuid(config.txUuid);
+        const targetRxUuid  = normalizeUuid(config.rxUuid);
+
+        // 1) Try configured Service/TX UUID first (unless preset is 'auto')
+        if (config.preset !== 'auto' && targetSvcUuid) {
+          try {
+            const service = await server.getPrimaryService(targetSvcUuid);
+            const chars = await service.getCharacteristics();
+
+            let txChar = chars.find((c) => c.uuid === targetTxUuid && isWritable(c)) || null;
+            if (!txChar) {
+              // Pick best writable char in this service (prefer writeWithoutResponse)
+              txChar = pickBestWritable(chars);
+            }
+            const rxChar = chars.find((c) => c.uuid === targetRxUuid && isNotifiable(c))
+              || chars.find((c) => isNotifiable(c))
+              || null;
+
+            if (txChar) {
+              return { txChar, rxChar, serviceUuidFound: service.uuid };
+            }
+          } catch (err) {
+            addLog('WARN', `الخدمة المحددة غير موجودة، جاري البحث التلقائي...`);
+          }
+        }
+
+        // 2) Auto-Discover Fallback: scan all accessible primary services
+        const services = await server.getPrimaryServices();
+        for (const svc of services) {
+          try {
+            const chars = await svc.getCharacteristics();
+            const txChar = pickBestWritable(chars);
+            if (txChar) {
+              const rxChar = chars.find((c) => isNotifiable(c)) || null;
+              return { txChar, rxChar, serviceUuidFound: svc.uuid };
+            }
+          } catch (err) {
+            // Skip restricted services
+          }
+        }
+        return { txChar: null, rxChar: null, serviceUuidFound: '' };
+      }
+
+      function isWritable(char) {
+        const p = char.properties;
+        return Boolean(p && (p.writeWithoutResponse || p.write));
+      }
+
+      function isNotifiable(char) {
+        const p = char.properties;
+        return Boolean(p && (p.notify || p.indicate));
+      }
+
+      function pickBestWritable(chars) {
+        // Strongly prefer writeWithoutResponse for zero-hang HM-10/JDY-08/ESP32 reliability
+        return chars.find((c) => c.properties?.writeWithoutResponse)
+          || chars.find((c) => c.properties?.write)
+          || null;
+      }
+
+      function detectSafeWriteMethod(char) {
+        if (char.properties?.writeWithoutResponse && typeof char.writeValueWithoutResponse === 'function') {
+          return 'writeValueWithoutResponse';
+        }
+        if (char.properties?.write && typeof char.writeValueWithResponse === 'function') {
+          return 'writeValueWithResponse';
+        }
+        return 'writeValue';
+      }
+
+      async function enableRxNotificationsSafely(rxChar) {
+        if (state.status !== 'connected' || !rxChar) return;
+        try {
+          await rxChar.startNotifications();
+          rxChar.removeEventListener('characteristicvaluechanged', onRxData);
+          rxChar.addEventListener('characteristicvaluechanged', onRxData);
+          addLog('BLE', 'تم تفعيل استقبال RX Notifications بنجاح');
+        } catch (err) {
+          addLog('WARN', `تم تجاهل فشل RX Notify للحفاظ على الاتصال: ${err.message || err}`);
+        }
+      }
+
+      function onRxData(event) {
+        try {
+          const text = decoder.decode(event.target.value).trim();
+          if (text) addLog('RX', text);
+        } catch (err) { /* ignore decode glitches */ }
+      }
+
+      /* -----------------------------------------------------------------------
+         9. AUTOMATIC RECONNECTION WITH EXPONENTIAL BACKOFF
+         ----------------------------------------------------------------------- */
+      function onGattDisconnected() {
+        stopKeepAliveTimer();
+        clearTimeout(state.rxTimer);
+        state.txChar = null;
+        state.rxChar = null;
+        state.isWriting = false;
+        state.pendingMotionPacket = null;
+        state.pendingPriorityQueue = [];
+
+        if (state.manualDisconnect) {
+          addLog('BLE', 'تم قطع الاتصال يدوياً');
+          setConnectionUI('disconnected');
+          releaseWakeLock();
+          return;
+        }
+
+        addLog('WARN', 'انقطع اتصال GATT بشكل غير متوقع');
+
+        if (config.autoReconnect && state.device) {
+          state.reconnectIndex = 0;
+          scheduleNextReconnect();
+        } else {
+          setConnectionUI('disconnected');
+          releaseWakeLock();
+          showToast('انقطع اتصال البلوتوث', 'warn');
+        }
+      }
+
+      function scheduleNextReconnect() {
+        if (state.manualDisconnect || !state.device) return;
+        if (state.reconnectIndex >= RECONNECT_BACKOFF_MS.length) {
+          addLog('ERR', 'انتهت محاولات إعادة الاتصال التلقائي (5/5)');
+          setConnectionUI('disconnected');
+          releaseWakeLock();
+          showToast('تعذرت إعادة الاتصال — اضغط للاتصال مجدداً', 'error');
+          return;
+        }
+
+        const delayMs = RECONNECT_BACKOFF_MS[state.reconnectIndex];
+        state.reconnectIndex += 1;
+        setConnectionUI('reconnecting', `إعادة الاتصال (${state.reconnectIndex}/${RECONNECT_BACKOFF_MS.length})...`);
+        addLog('BLE', `محاولة إعادة اتصال ${state.reconnectIndex}/${RECONNECT_BACKOFF_MS.length} خلال ${delayMs}ms`);
+
+        clearTimeout(state.reconnectTimer);
+        state.reconnectTimer = setTimeout(async () => {
+          if (state.manualDisconnect || !state.device) return;
+          try {
+            await establishGattSession(state.device, true);
+          } catch (err) {
+            addLog('WARN', `فشلت المحاولة ${state.reconnectIndex}: ${err.message || err}`);
+            scheduleNextReconnect();
+          }
+        }, delayMs);
+      }
+
+      function cancelAutoReconnect(resetUI = true) {
+        clearTimeout(state.reconnectTimer);
+        state.reconnectTimer = null;
+        state.reconnectIndex = 0;
+        if (resetUI) {
+          state.manualDisconnect = true;
+          setConnectionUI('disconnected');
+          releaseWakeLock();
+        }
+      }
+
+      async function manualDisconnectBLE() {
+        state.manualDisconnect = true;
+        cancelAutoReconnect(false);
+        stopKeepAliveTimer();
+        clearTimeout(state.rxTimer);
+        clearTimeout(state.doubleStopTimer);
+
+        // Always send STOP before disconnecting so the robot never keeps rolling
+        try {
+          if (state.txChar && state.device?.gatt?.connected) {
+            const stopCmd = buildStopCommand();
+            await rawWriteBytes(encoder.encode(stopCmd + getLineEndingStr()));
+            addLog('TX', `${stopCmd} (قبل قطع الاتصال)`);
+          }
+        } catch (err) { /* proceed with disconnect */ }
+
+        try {
+          if (state.device?.gatt?.connected) {
+            state.device.gatt.disconnect();
+          }
+        } catch (err) { /* ignore */ }
+
+        state.txChar = null;
+        state.rxChar = null;
+        setConnectionUI('disconnected');
+        releaseWakeLock();
+        showToast('تم قطع اتصال البلوتوث', 'info');
+      }
+
+      /* -----------------------------------------------------------------------
+         10. SERIALIZED NON-BLOCKING WRITE QUEUE, COALESCING & KEEP-ALIVE
+         ----------------------------------------------------------------------- */
+      function enqueueCommand(cmdText, { priority = false, isKeepAlive = false } = {}) {
+        const wire = cmdText + getLineEndingStr();
+
+        // Demo mode simulation
+        if (config.demoMode) {
+          state.lastTxSentMs = Date.now();
+          addLog(isKeepAlive ? 'KA' : 'TX', `[DEMO] ${cmdText.replace(/\n/g, '\\n')}`);
+          return;
+        }
+
+        if (state.status !== 'connected' || !state.txChar) return;
+
+        if (priority) {
+          // Priority STOP flushes all pending non-stop motion commands immediately
+          state.pendingMotionPacket = null;
+          state.pendingPriorityQueue = [{ wire, label: cmdText, isKeepAlive }];
+        } else {
+          // Coalesce continuous movement packets to always send the freshest state
+          state.pendingMotionPacket = { wire, label: cmdText, isKeepAlive };
+        }
+
+        drainWriteQueue();
+      }
+
+      async function drainWriteQueue() {
+        if (state.isWriting) return;
+        if (state.status !== 'connected' || !state.txChar) return;
+
+        // Pick next packet: priority queue first, then latest coalesced motion packet
+        let nextItem = null;
+        let isPriority = false;
+        if (state.pendingPriorityQueue.length > 0) {
+          nextItem = state.pendingPriorityQueue.shift();
+          isPriority = true;
+        } else if (state.pendingMotionPacket) {
+          nextItem = state.pendingMotionPacket;
+          state.pendingMotionPacket = null;
+        } else {
+          return;
+        }
+
+        // Enforce throttle spacing for normal movement packets (STOP bypasses throttle!)
+        if (!isPriority) {
+          const elapsed = Date.now() - state.lastWriteEndMs;
+          const waitNeeded = config.throttleMs - elapsed;
+          if (waitNeeded > 0) {
+            state.pendingMotionPacket = nextItem;
+            clearTimeout(state.drainTimer);
+            state.drainTimer = setTimeout(drainWriteQueue, waitNeeded);
+            return;
+          }
+        }
+
+        state.isWriting = true;
+        try {
+          const bytes = encoder.encode(nextItem.wire);
+          await rawWriteBytes(bytes);
+          state.lastWriteEndMs = Date.now();
+          state.lastTxSentMs = state.lastWriteEndMs;
+          addLog(nextItem.isKeepAlive ? 'KA' : 'TX', nextItem.label.replace(/\n/g, '\\n'));
+        } catch (err) {
+          addLog('ERR', `خطأ إرسال BLE: ${err.message || err}`);
+        } finally {
+          state.isWriting = false;
+          if (state.pendingPriorityQueue.length > 0 || state.pendingMotionPacket) {
+            clearTimeout(state.drainTimer);
+            state.drainTimer = setTimeout(drainWriteQueue, isPriority ? 10 : config.throttleMs);
+          }
+        }
+      }
+
+      async function rawWriteBytes(bytes) {
+        const char = state.txChar;
+        if (!char) throw new Error('TX غير متاح');
+
+        // Split cleanly into <=20 byte chunks for universal BLE 4.0 MTU safety
+        for (let offset = 0; offset < bytes.length; offset += BLE_MTU_CHUNK) {
+          const chunk = bytes.slice(offset, offset + BLE_MTU_CHUNK);
+          if (state.writeMethodName === 'writeValueWithoutResponse' && typeof char.writeValueWithoutResponse === 'function') {
+            await char.writeValueWithoutResponse(chunk);
+          } else if (state.writeMethodName === 'writeValueWithResponse' && typeof char.writeValueWithResponse === 'function') {
+            await char.writeValueWithResponse(chunk);
+          } else {
+            await char.writeValue(chunk);
+          }
+        }
+      }
+
+      // Smart Keep-Alive Heartbeat (prevents BLE supervision timeout & module auto-sleep)
+      function startKeepAliveTimer() {
+        stopKeepAliveTimer();
+        if (config.keepAliveMode === 'off') return;
+
+        const intervalMs = Math.max(1000, Number(config.keepAliveSec || 4) * 1000);
+        state.keepAliveTimer = setInterval(() => {
+          if (state.status !== 'connected' || !state.txChar) return;
+          if (state.isWriting || state.pendingMotionPacket || state.pendingPriorityQueue.length > 0) return;
+
+          // Only fire when idle for at least the configured interval
+          if (Date.now() - state.lastTxSentMs < intervalMs - 150) return;
+
+          if (config.keepAliveMode === 'newline') {
+            // Send a single raw newline pulse without extra line ending
+            sendRawKeepAliveNewline();
+          } else if (config.keepAliveMode === 'safe_stop') {
+            // Only send safe_stop heartbeat if the robot is currently idle/stopped
+            if (state.lastMotionKey === 's') {
+              enqueueCommand(buildStopCommand(), { priority: false, isKeepAlive: true });
+            }
+          }
+        }, Math.min(1000, Math.floor(intervalMs / 2)));
+      }
+
+      async function sendRawKeepAliveNewline() {
+        if (state.isWriting || !state.txChar || state.status !== 'connected') return;
+        state.isWriting = true;
+        try {
+          await rawWriteBytes(encoder.encode('\n'));
+          state.lastWriteEndMs = Date.now();
+          state.lastTxSentMs = state.lastWriteEndMs;
+          addLog('KA', '\\n (نبضة إبقاء اتصال)');
+        } catch (err) {
+          addLog('WARN', `فشلت نبضة Keep-Alive: ${err.message || err}`);
+        } finally {
+          state.isWriting = false;
+        }
+      }
+
+      function stopKeepAliveTimer() {
+        clearInterval(state.keepAliveTimer);
+        state.keepAliveTimer = null;
+      }
+
+      /* -----------------------------------------------------------------------
+         11. MULTI-TOUCH ARC TURNING & DIFFERENTIAL MOTOR MIXER
+         ----------------------------------------------------------------------- */
+      function buildStopCommand() {
+        return config.protocol === 'differential' ? 'M:0,0' : (config.cmds.s || 'S');
+      }
+
+      function computeActiveDirections() {
+        const dirs = new Set(state.activeKeys);
+        for (const d of state.activePointers.values()) {
+          dirs.add(d);
+        }
+        return dirs;
+      }
+
+      function updateButtonVisuals(activeDirs) {
+        for (const btn of els.driveBtns) {
+          const d = btn.dataset.dir;
+          btn.classList.toggle('is-active', activeDirs.has(d));
+        }
+      }
+
+      function computeCommandFromDirs(activeDirs) {
+        const fwd = activeDirs.has('forward') && !activeDirs.has('backward');
+        const bwd = activeDirs.has('backward') && !activeDirs.has('forward');
+        const lft = activeDirs.has('left') && !activeDirs.has('right');
+        const rgt = activeDirs.has('right') && !activeDirs.has('left');
+
+        let motionKey = 's';
+        if (fwd && lft) motionKey = 'fl';
+        else if (fwd && rgt) motionKey = 'fr';
+        else if (bwd && lft) motionKey = 'bl';
+        else if (bwd && rgt) motionKey = 'br';
+        else if (fwd) motionKey = 'f';
+        else if (bwd) motionKey = 'b';
+        else if (lft) motionKey = 'l';
+        else if (rgt) motionKey = 'r';
+
+        if (config.protocol === 'chars') {
+          return { motionKey, command: config.cmds[motionKey] || 'S' };
+        }
+
+        // Differential Motor Mixer (M:L,R) with configurable Max Speed & Inner Wheel Arc Ratio
+        const maxSpd = Math.max(0, Math.min(255, Number(config.maxSpeed) || 220));
+        const innerSpd = Math.round(maxSpd * (Math.max(0, Math.min(80, Number(config.arcRatio) || 40)) / 100));
+
+        let L = 0;
+        let R = 0;
+        switch (motionKey) {
+          case 'f':  L =  maxSpd;   R =  maxSpd;   break;
+          case 'b':  L = -maxSpd;   R = -maxSpd;   break;
+          case 'l':  L = -maxSpd;   R =  maxSpd;   break; // Pivot left in place
+          case 'r':  L =  maxSpd;   R = -maxSpd;   break; // Pivot right in place
+          case 'fr': L =  maxSpd;   R =  innerSpd; break; // Forward-Right smooth arc
+          case 'fl': L =  innerSpd; R =  maxSpd;   break; // Forward-Left smooth arc
+          case 'br': L = -maxSpd;   R = -innerSpd; break; // Backward-Right smooth arc
+          case 'bl': L = -innerSpd; R = -maxSpd;   break; // Backward-Left smooth arc
+          default:   L = 0;         R = 0;         break;
+        }
+        return { motionKey, command: `M:${L},${R}` };
+      }
+
+      function evaluateDrivingInput(forceSend = false) {
+        const activeDirs = computeActiveDirections();
+        updateButtonVisuals(activeDirs);
+
+        const { motionKey, command } = computeCommandFromDirs(activeDirs);
+        if (!forceSend && motionKey === state.lastMotionKey) return;
+
+        const wasMoving = state.lastMotionKey !== 's';
+        state.lastMotionKey = motionKey;
+
+        // Cancel any pending safety double-stop if user resumed driving
+        clearTimeout(state.doubleStopTimer);
+
+        if (motionKey === 's') {
+          enqueueCommand(command, { priority: true });
+          // Safety redundant STOP after short gap on release so robot never keeps moving on packet loss
+          if (wasMoving) {
+            state.doubleStopTimer = setTimeout(() => {
+              if (state.lastMotionKey === 's') {
+                enqueueCommand(buildStopCommand(), { priority: true });
+              }
+            }, DOUBLE_STOP_GAP_MS);
+          }
+        } else {
+          enqueueCommand(command, { priority: false });
+        }
+      }
+
+      function emergencyStopAllInputs() {
+        state.activePointers.clear();
+        state.activeKeys.clear();
+        evaluateDrivingInput(true);
+      }
+
+      /* -----------------------------------------------------------------------
+         12. MULTI-TOUCH POINTER EVENTS & KEYBOARD SUPPORT
+         ----------------------------------------------------------------------- */
+      function bindDrivingControls() {
+        for (const btn of els.driveBtns) {
+          const dir = btn.dataset.dir;
+
+          btn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            try { btn.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+            state.activePointers.set(e.pointerId, dir);
+            if (navigator.vibrate) {
+              try { navigator.vibrate(12); } catch (err) { /* ignore */ }
+            }
+            evaluateDrivingInput();
+          });
+
+          const releasePointer = (e) => {
+            if (!state.activePointers.has(e.pointerId)) return;
+            state.activePointers.delete(e.pointerId);
+            evaluateDrivingInput();
+          };
+
+          btn.addEventListener('pointerup', releasePointer);
+          btn.addEventListener('pointercancel', releasePointer);
+          btn.addEventListener('lostpointercapture', releasePointer);
+          btn.addEventListener('contextmenu', (e) => e.preventDefault());
+        }
+
+        // Desktop Keyboard Support (WASD + Arrows)
+        const keyMap = {
+          ArrowUp: 'forward',    KeyW: 'forward',
+          ArrowDown: 'backward', KeyS: 'backward',
+          ArrowLeft: 'left',     KeyA: 'left',
+          ArrowRight: 'right',   KeyD: 'right',
+        };
+
+        window.addEventListener('keydown', (e) => {
+          if (!els.settingsModal.classList.contains('hidden')) return;
+          const mapped = keyMap[e.code];
+          if (!mapped) return;
+          e.preventDefault();
+          if (!state.activeKeys.has(mapped)) {
+            state.activeKeys.add(mapped);
+            evaluateDrivingInput();
+          }
+        });
+
+        window.addEventListener('keyup', (e) => {
+          const mapped = keyMap[e.code];
+          if (!mapped) return;
+          if (state.activeKeys.delete(mapped)) {
+            evaluateDrivingInput();
+          }
+        });
+
+        // Clean Lifecycle Safety: STOP robot if user leaves page, switches app, or loses focus
+        window.addEventListener('blur', emergencyStopAllInputs);
+        window.addEventListener('pagehide', emergencyStopAllInputs);
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) {
+            emergencyStopAllInputs();
+          } else if (state.status === 'connected') {
+            acquireWakeLock();
+          }
+        });
+      }
+
+      /* -----------------------------------------------------------------------
+         13. SETTINGS MODAL SYNC & EVENT HANDLERS
+         ----------------------------------------------------------------------- */
+      function populateSettingsUI() {
+        els.presetSelect.value = config.preset;
+        els.serviceUuidInput.value = config.serviceUuid;
+        els.txUuidInput.value = config.txUuid;
+        els.rxUuidInput.value = config.rxUuid;
+        els.uuidInputsBox.classList.toggle('opacity-50', config.preset === 'auto');
+
+        els.autoReconnectToggle.checked = config.autoReconnect;
+        els.rxNotifyToggle.checked = config.rxNotify;
+        els.keepAliveModeSelect.value = config.keepAliveMode;
+        els.keepAliveSecInput.value = config.keepAliveSec;
+        els.lineEndingSelect.value = config.lineEnding;
+
+        els.throttleSlider.value = config.throttleMs;
+        els.throttleValueLabel.textContent = `${config.throttleMs} ms`;
+
+        const protoRadio = document.querySelector(`input[name="protocolMode"][value="${config.protocol}"]`);
+        if (protoRadio) protoRadio.checked = true;
+
+        els.maxSpeedSlider.value = config.maxSpeed;
+        els.maxSpeedLabel.textContent = config.maxSpeed;
+        els.arcRatioSlider.value = config.arcRatio;
+        els.arcRatioLabel.textContent = `${config.arcRatio}%`;
+        updateArcFormulaPreview();
+
+        els.cmdF.value = config.cmds.f;
+        els.cmdB.value = config.cmds.b;
+        els.cmdL.value = config.cmds.l;
+        els.cmdR.value = config.cmds.r;
+        els.cmdS.value = config.cmds.s;
+        els.cmdFL.value = config.cmds.fl;
+        els.cmdFR.value = config.cmds.fr;
+        els.cmdBL.value = config.cmds.bl;
+        els.cmdBR.value = config.cmds.br;
+
+        els.demoModeToggle.checked = config.demoMode;
+      }
+
+      function updateArcFormulaPreview() {
+        const spd = Number(els.maxSpeedSlider.value) || 220;
+        const ratio = Number(els.arcRatioSlider.value) || 40;
+        const inner = Math.round(spd * (ratio / 100));
+        els.arcFormulaPreview.textContent = `أمام + يمين → M:${spd},${inner}`;
+      }
+
+      function syncSettingsFromUI() {
+        config.preset = els.presetSelect.value;
+        config.serviceUuid = els.serviceUuidInput.value.trim();
+        config.txUuid = els.txUuidInput.value.trim();
+        config.rxUuid = els.rxUuidInput.value.trim();
+
+        config.autoReconnect = els.autoReconnectToggle.checked;
+        config.rxNotify = els.rxNotifyToggle.checked;
+        config.keepAliveMode = els.keepAliveModeSelect.value;
+        config.keepAliveSec = Math.max(1, Math.min(20, parseInt(els.keepAliveSecInput.value, 10) || 4));
+        config.lineEnding = els.lineEndingSelect.value;
+        config.throttleMs = parseInt(els.throttleSlider.value, 10) || 45;
+
+        const checkedProto = document.querySelector('input[name="protocolMode"]:checked');
+        if (checkedProto) config.protocol = checkedProto.value;
+
+        config.maxSpeed = parseInt(els.maxSpeedSlider.value, 10) || 220;
+        config.arcRatio = parseInt(els.arcRatioSlider.value, 10) || 40;
+
+        config.cmds = {
+          f:  els.cmdF.value.trim()  || 'F',
+          b:  els.cmdB.value.trim()  || 'B',
+          l:  els.cmdL.value.trim()  || 'L',
+          r:  els.cmdR.value.trim()  || 'R',
+          s:  els.cmdS.value.trim()  || 'S',
+          fl: els.cmdFL.value.trim() || 'G',
+          fr: els.cmdFR.value.trim() || 'I',
+          bl: els.cmdBL.value.trim() || 'H',
+          br: els.cmdBR.value.trim() || 'J',
+        };
+
+        config.demoMode = els.demoModeToggle.checked;
+        saveConfig();
+
+        // Apply live stability settings immediately if connected
+        if (state.status === 'connected') {
+          startKeepAliveTimer();
+        } else if (config.demoMode) {
+          setConnectionUI('demo');
+        } else if (state.status === 'demo') {
+          setConnectionUI('disconnected');
+        }
+      }
+
+      function openSettings() {
+        emergencyStopAllInputs();
+        populateSettingsUI();
+        els.settingsModal.classList.remove('hidden');
+      }
+
+      function closeSettings() {
+        syncSettingsFromUI();
+        els.settingsModal.classList.add('hidden');
+      }
+
+      function bindUIEvents() {
+        // Header controls
+        els.bleConnectBtn.addEventListener('click', handleConnectButtonClick);
+        els.fullscreenBtn.addEventListener('click', () => toggleFullscreenLandscape(false));
+        els.openSettingsBtn.addEventListener('click', openSettings);
+
+        // Fullscreen change listener
+        document.addEventListener('fullscreenchange', updateFullscreenIcon);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
+
+        // Portrait orientation overlay buttons
+        els.portraitLandscapeBtn.addEventListener('click', async () => {
+          await toggleFullscreenLandscape(true);
+          els.portraitOverlay.classList.add('dismissed');
+        });
+        els.portraitDismissBtn.addEventListener('click', () => {
+          els.portraitOverlay.classList.add('dismissed');
+        });
+
+        // Settings modal close/save
+        els.closeSettingsBtn.addEventListener('click', closeSettings);
+        els.doneSettingsBtn.addEventListener('click', () => {
+          closeSettings();
+          showToast('تم حفظ الإعدادات', 'success');
+        });
+        els.settingsModal.addEventListener('click', (e) => {
+          if (e.target === els.settingsModal) closeSettings();
+        });
+
+        // Preset auto-fill
+        els.presetSelect.addEventListener('change', () => {
+          const val = els.presetSelect.value;
+          if (PRESETS[val]) {
+            els.serviceUuidInput.value = PRESETS[val].service;
+            els.txUuidInput.value = PRESETS[val].tx;
+            els.rxUuidInput.value = PRESETS[val].rx;
+          }
+          els.uuidInputsBox.classList.toggle('opacity-50', val === 'auto');
+          syncSettingsFromUI();
+        });
+
+        // Live sliders feedback & persistence
+        els.throttleSlider.addEventListener('input', () => {
+          els.throttleValueLabel.textContent = `${els.throttleSlider.value} ms`;
+          syncSettingsFromUI();
+        });
+        els.maxSpeedSlider.addEventListener('input', () => {
+          els.maxSpeedLabel.textContent = els.maxSpeedSlider.value;
+          updateArcFormulaPreview();
+          syncSettingsFromUI();
+        });
+        els.arcRatioSlider.addEventListener('input', () => {
+          els.arcRatioLabel.textContent = `${els.arcRatioSlider.value}%`;
+          updateArcFormulaPreview();
+          syncSettingsFromUI();
+        });
+
+        // Auto-save on any input/select/checkbox change inside settings
+        els.settingsModal.addEventListener('change', (e) => {
+          if (e.target === els.coverFileInput) return;
+          syncSettingsFromUI();
+        });
+
+        // Cover image upload & reset
+        els.coverFileInput.addEventListener('change', (e) => {
+          const file = e.target.files?.[0];
+          if (file) handleCoverUpload(file);
+          e.target.value = '';
+        });
+        els.resetCoverBtn.addEventListener('click', resetCoverToDefault);
+
+        // Clear diagnostic log
+        els.clearLogBtn.addEventListener('click', () => {
+          els.diagLogBox.innerHTML = '';
+          addLog('BLE', 'تم مسح سجل التشخيص');
+        });
+
+        // Two-click safe reset all settings (no window.confirm)
+        els.resetAllBtn.addEventListener('click', () => {
+          if (!state.resetArmed) {
+            state.resetArmed = true;
+            els.resetAllBtn.textContent = 'اضغط مجدداً للتأكيد';
+            els.resetAllBtn.classList.add('border-rose-400', 'text-rose-300');
+            clearTimeout(state.resetArmTimer);
+            state.resetArmTimer = setTimeout(() => {
+              state.resetArmed = false;
+              els.resetAllBtn.textContent = 'إعادة الضبط';
+              els.resetAllBtn.classList.remove('border-rose-400', 'text-rose-300');
+            }, 3000);
+            return;
+          }
+          clearTimeout(state.resetArmTimer);
+          state.resetArmed = false;
+          els.resetAllBtn.textContent = 'إعادة الضبط';
+          els.resetAllBtn.classList.remove('border-rose-400', 'text-rose-300');
+
+          config = structuredClone(DEFAULT_CONFIG);
+          saveConfig();
+          populateSettingsUI();
+          setConnectionUI(state.status === 'connected' ? 'connected' : 'disconnected');
+          showToast('تمت استعادة الإعدادات الافتراضية', 'info');
+        });
+      }
+
+      /* -----------------------------------------------------------------------
+         14. BOOTSTRAP APPLICATION
+         ----------------------------------------------------------------------- */
+      function init() {
+        initCoverBackground();
+        populateSettingsUI();
+        bindDrivingControls();
+        bindUIEvents();
+
+        if (config.demoMode) {
+          setConnectionUI('demo');
+        } else {
+          setConnectionUI('disconnected');
+        }
+
+        addLog('BLE', 'تطبيق NEOtech جاهز — محرك الثبات والالتفاف القوسي مفعّل');
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>
